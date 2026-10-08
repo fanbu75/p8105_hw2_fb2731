@@ -1,0 +1,262 @@
+---
+title: "hw2_fb2731"
+author: fan bu
+output: github_document
+date: "2026-10-07"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor)
+```
+# problem 1
+```{r}
+subway_raw =
+  read_csv("data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv")
+glimpse(subway_raw)
+names(subway_raw)
+subway_df =
+  subway_raw |>
+  clean_names()
+names(subway_df)
+subway_df =
+  subway_df |>
+  select(
+    line,
+    station_name,
+    station_latitude,
+    station_longitude,
+    starts_with("route"),
+    entry,
+    vending,
+    entrance_type,
+    ada
+  )
+glimpse(subway_df)
+subway_df =
+  subway_df |>
+  mutate(
+    entry = case_match(
+      entry,
+      "YES" ~ TRUE,
+      "NO" ~ FALSE
+    )
+  )
+count(subway_df, entry)
+dim(subway_df)
+
+station_count =
+  subway_df |>
+  distinct(line, station_name) |>
+  nrow()
+
+station_count
+count(subway_df, ada)
+ada_station_count =
+  subway_df |>
+  filter(ada == TRUE) |>
+  distinct(line, station_name) |>
+  nrow()
+
+ada_station_count
+count(subway_df, vending)
+no_vending_entry_prop =
+  subway_df |>
+  filter(vending == "NO") |>
+  summarize(
+    proportion = mean(entry, na.rm = TRUE)
+  ) |>
+  pull(proportion)
+
+no_vending_entry_prop
+
+subway_long =
+  subway_df |>
+  mutate(
+    across(starts_with("route"), as.character)
+  ) |>
+  pivot_longer(
+    cols = starts_with("route"),
+    names_to = "route_number",
+    values_to = "route_name"
+  ) |>
+  filter(!is.na(route_name))
+
+a_train_station_count =
+  subway_long |>
+  filter(route_name == "A") |>
+  distinct(line, station_name) |>
+  nrow()
+
+a_train_station_count
+
+a_train_ada_count =
+  subway_long |>
+  filter(
+    route_name == "A",
+    ada == TRUE
+  ) |>
+  distinct(line, station_name) |>
+  nrow()
+
+a_train_ada_count
+
+```
+```{r}
+# Problem 2
+
+trash_file = "data/202610 Trash Wheel Collection Data.xlsx"
+
+excel_sheets(trash_file)
+
+
+mr_trash =
+  read_excel(
+    trash_file,
+    sheet = 1,
+    range = "A2:N1000"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    month = as.character(month),
+    year = as.integer(parse_number(as.character(year))),
+    date = as.character(date),
+
+    across(
+      any_of(c(
+        "weight_tons",
+        "volume_cubic_yards",
+        "plastic_bottles",
+        "polystyrene",
+        "cigarette_butts",
+        "glass_bottles",
+        "plastic_bags",
+        "wrappers",
+        "homes_powered"
+      )),
+      ~ parse_number(as.character(.x))
+    ),
+
+    sports_balls =
+      as.integer(
+        round(
+          parse_number(as.character(sports_balls))
+        )
+      ),
+
+    trash_wheel = "Mr. Trash Wheel"
+  )
+
+
+
+professor_trash =
+  read_excel(
+    trash_file,
+    sheet = 2,
+    range = "A2:N1000"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    month = as.character(month),
+    year = as.integer(parse_number(as.character(year))),
+    date = as.character(date),
+
+    across(
+      any_of(c(
+        "weight_tons",
+        "volume_cubic_yards",
+        "plastic_bottles",
+        "polystyrene",
+        "cigarette_butts",
+        "glass_bottles",
+        "plastic_bags",
+        "wrappers",
+        "sports_balls",
+        "homes_powered"
+      )),
+      ~ parse_number(as.character(.x))
+    ),
+
+    trash_wheel = "Professor Trash Wheel"
+  )
+
+
+
+gwynnda_trash =
+  read_excel(
+    trash_file,
+    sheet = 4,
+    range = "A2:N1000"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    month = as.character(month),
+    year = as.integer(parse_number(as.character(year))),
+    date = as.character(date),
+
+    across(
+      any_of(c(
+        "weight_tons",
+        "volume_cubic_yards",
+        "plastic_bottles",
+        "polystyrene",
+        "cigarette_butts",
+        "glass_bottles",
+        "plastic_bags",
+        "wrappers",
+        "sports_balls",
+        "homes_powered"
+      )),
+      ~ parse_number(as.character(.x))
+    ),
+
+    trash_wheel = "Gwynnda"
+  )
+
+
+trash_wheel_df =
+  bind_rows(
+    mr_trash,
+    professor_trash,
+    gwynnda_trash
+  )
+
+glimpse(trash_wheel_df)
+
+trash_wheel_df |>
+  count(trash_wheel)
+
+nrow(trash_wheel_df)
+
+professor_total_weight =
+  trash_wheel_df |>
+  filter(trash_wheel == "Professor Trash Wheel") |>
+  summarize(
+    total_weight = sum(weight_tons, na.rm = TRUE)
+  ) |>
+  pull(total_weight)
+
+professor_total_weight
+
+gwynnda_june_2022 =
+  trash_wheel_df |>
+  filter(
+    trash_wheel == "Gwynnda",
+    year == 2022,
+    month == "June"
+  ) |>
+  summarize(
+    total_cigarette_butts =
+      sum(cigarette_butts, na.rm = TRUE)
+  ) |>
+  pull(total_cigarette_butts)
+
+gwynnda_june_2022
+
+The combined Trash Wheel dataset contains `r nrow(trash_wheel_df)` observations. Each observation represents a dumpster collection from Mr. Trash Wheel, Professor Trash Wheel, or Gwynnda. Key variables include dumpster number, collection date, weight, volume, cigarette butts, plastic bottles, and Trash Wheel identifier.
+Professor Trash Wheel collected a total of `r round(professor_total_weight, 2)` tons of trash. Gwynnda collected `r gwynnda_june_2022` cigarette butts in June 2022.
+```
