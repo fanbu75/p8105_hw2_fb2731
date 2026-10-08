@@ -257,6 +257,184 @@ gwynnda_june_2022 =
 
 gwynnda_june_2022
 
+```
+
+
 The combined Trash Wheel dataset contains `r nrow(trash_wheel_df)` observations. Each observation represents a dumpster collection from Mr. Trash Wheel, Professor Trash Wheel, or Gwynnda. Key variables include dumpster number, collection date, weight, volume, cigarette butts, plastic bottles, and Trash Wheel identifier.
 Professor Trash Wheel collected a total of `r round(professor_total_weight, 2)` tons of trash. Gwynnda collected `r gwynnda_june_2022` cigarette butts in June 2022.
+
+```{r}
+# Problem 3
+
+baseline_df =
+  read_csv(
+    "data/MCI_baseline.csv",
+    skip = 1,
+    na = c("", ".", "NA")
+  ) |>
+  clean_names()
+
+amyloid_df =
+  read_csv(
+    "data/mci_amyloid.csv",
+    skip = 1,
+    na = c("", ".", "NA")
+  ) |>
+  clean_names()
+baseline_df =
+  baseline_df |>
+  mutate(
+    id = as.integer(id),
+    current_age = as.numeric(current_age),
+    education = as.numeric(education),
+    age_at_onset = as.numeric(age_at_onset),
+
+    sex = case_match(
+      sex,
+      0 ~ "Female",
+      1 ~ "Male"
+    ),
+
+    apoe4 = case_match(
+      apoe4,
+      0 ~ "Non-carrier",
+      1 ~ "Carrier"
+    )
+  ) |>
+  filter(
+    is.na(age_at_onset) |
+      age_at_onset > current_age
+  )
+
+glimpse(baseline_df)
+
+count(baseline_df, sex)
+count(baseline_df, apoe4)
+
+n_participants =
+  nrow(baseline_df)
+
+n_participants
+
+n_mci =
+  baseline_df |>
+  filter(!is.na(age_at_onset)) |>
+  nrow()
+
+n_mci
+
+mean_baseline_age =
+  baseline_df |>
+  summarize(
+    mean_age = mean(current_age, na.rm = TRUE)
+  ) |>
+  pull(mean_age)
+
+mean_baseline_age
+
+female_apoe4_prop =
+  baseline_df |>
+  filter(sex == "Female") |>
+  summarize(
+    proportion = mean(apoe4 == "Carrier", na.rm = TRUE)
+  ) |>
+  pull(proportion)
+
+female_apoe4_prop
+
+female_apoe4_prop * 100
+
+amyloid_long =
+  amyloid_df |>
+  mutate(
+    across(
+      c(baseline, time_2, time_4, time_6, time_8),
+      as.numeric
+    )
+  ) |>
+  pivot_longer(
+    cols = c(baseline, time_2, time_4, time_6, time_8),
+    names_to = "visit",
+    values_to = "amyloid_42_40"
+  ) |>
+  mutate(
+    time = case_match(
+      visit,
+      "baseline" ~ 0,
+      "time_2" ~ 2,
+      "time_4" ~ 4,
+      "time_6" ~ 6,
+      "time_8" ~ 8
+    )
+  ) |>
+  select(
+    study_id,
+    time,
+    amyloid_42_40
+  )
+
+glimpse(amyloid_long)
+
+baseline_only =
+  baseline_df |>
+  anti_join(
+    amyloid_long |>
+      distinct(study_id),
+    by = c("id" = "study_id")
+  )
+
+baseline_only
+nrow(baseline_only)
+
+amyloid_only =
+  amyloid_long |>
+  distinct(study_id) |>
+  anti_join(
+    baseline_df,
+    by = c("study_id" = "id")
+  )
+
+amyloid_only
+nrow(amyloid_only)
+mci_combined =
+  amyloid_long |>
+  inner_join(
+    baseline_df,
+    by = c("study_id" = "id")
+  )
+
+glimpse(mci_combined)
+
+nrow(mci_combined)
+
+n_distinct(mci_combined$study_id)
+
+write_csv(
+  mci_combined,
+  "data/mci_combined.csv"
+)
+
+
 ```
+
+The baseline demographic dataset was imported after skipping the first
+descriptive header row. Sex and APOE4 carrier status were recoded as
+categorical variables, and participants who had developed MCI at or before
+baseline were excluded. The cleaned baseline dataset contains
+`r n_participants` eligible participants, of whom `r n_mci` developed MCI
+during follow-up. The mean baseline age was
+`r round(mean_baseline_age, 2)` years. Among female participants,
+`r round(100 * female_apoe4_prop, 1)`% were APOE4 carriers.
+
+The amyloid dataset contains amyloid 42/40 ratio measurements at baseline
+and at 2, 4, 6, and 8 years of follow-up. I reshaped the data from wide to
+long format so that each row represents one participant at one measurement
+time.
+
+There were `r nrow(baseline_only)` participants appearing only in the
+baseline dataset and `r nrow(amyloid_only)` participants appearing only in
+the amyloid dataset. The final dataset was created using an inner join so
+that only participants appearing in both datasets were retained.
+
+The final combined dataset contains `r nrow(mci_combined)` longitudinal
+observations from `r n_distinct(mci_combined$study_id)` unique participants.
